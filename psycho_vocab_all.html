@@ -72,6 +72,9 @@ body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-h
 .card-back{background:linear-gradient(145deg,#1e1b40,#16132e);border:1px solid var(--accent);transform:rotateY(180deg)}
 .ctype{font-size:10px;color:var(--muted);background:var(--surface2);padding:2px 8px;border-radius:10px;margin-bottom:6px;font-family:'Space Grotesk',sans-serif}
 .cen{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:3px}
+.cen-row{display:flex;align-items:center;justify-content:center;gap:10px}
+.speak-btn{background:transparent;border:none;cursor:pointer;font-size:22px;padding:4px;line-height:1;opacity:.7;transition:opacity .15s}
+.speak-btn:active{opacity:1;transform:scale(1.2)}
 .cpron{font-size:11px;color:var(--muted);margin-top:3px;min-height:14px;direction:rtl}
 .ctap{font-size:11px;color:var(--muted);margin-top:12px}
 .che{font-size:22px;font-weight:700;color:var(--accent2);margin-bottom:5px;direction:rtl;line-height:1.3}
@@ -169,7 +172,10 @@ body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-h
         <div class="card-inner" id="card-inner">
           <div class="card-face card-front">
             <div class="ctype" id="cf-type"></div>
-            <div class="cen" id="cf-en"></div>
+            <div class="cen-row">
+              <div class="cen" id="cf-en"></div>
+              <button class="speak-btn" onclick="speakWord(event)" title="השמע">🔊</button>
+            </div>
             <div class="cpron" id="cf-pron"></div>
             <div class="ctap">הקש לגילוי</div>
           </div>
@@ -351,6 +357,17 @@ async function setPron(word,...ids){
   ids.forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=p;});
 }
 
+function speakWord(e){
+  e.stopPropagation(); // לא להפוך את הכרטיס
+  const w=deck[deckIdx];
+  if(!w)return;
+  window.speechSynthesis.cancel();
+  const utt=new SpeechSynthesisUtterance(w);
+  utt.lang='en-US';
+  utt.rate=0.85;
+  window.speechSynthesis.speak(utt);
+}
+
 // FLASHCARDS
 let mode='all',deck=[],deckIdx=0,flipped=false,sKnew=0,sDidnt=0;
 function buildDeck(){
@@ -399,13 +416,19 @@ function showCard(){
   updateHdr();
 }
 function flipCard(){
-  if(flipped)return;
-  flipped=true;
-  document.getElementById('card-inner').classList.add('flipped');
-  document.getElementById('card-btns').classList.add('visible');
-  const st=getSt(curList);
-  st.seen[deck[deckIdx]]=(st.seen[deck[deckIdx]]||0)+1;
-  saveSt();
+  if(!flipped){
+    flipped=true;
+    document.getElementById('card-inner').classList.add('flipped');
+    document.getElementById('card-btns').classList.add('visible');
+    const st=getSt(curList);
+    st.seen[deck[deckIdx]]=(st.seen[deck[deckIdx]]||0)+1;
+    saveSt();
+  } else {
+    // הפוך חזרה לצד הקדמי
+    document.getElementById('card-inner').classList.remove('flipped');
+    flipped=false;
+    document.getElementById('card-btns').classList.remove('visible');
+  }
 }
 function rateCard(knew){
   const w=deck[deckIdx];const st=getSt(curList);
@@ -527,19 +550,23 @@ function switchTab(tab){
   let sx=0,sy=0;
   card.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
   card.addEventListener('touchmove',e=>{
-    if(!flipped)return;
-    const dx=e.touches[0].clientX-sx;
     const inner=document.getElementById('card-inner');
+    // swipe feedback רק כשהכרטיס בצד האחורי
+    if(!inner.classList.contains('flipped'))return;
+    const dx=e.touches[0].clientX-sx;
     if(dx>30)inner.classList.add('sr'),inner.classList.remove('sl');
     else if(dx<-30)inner.classList.add('sl'),inner.classList.remove('sr');
     else inner.classList.remove('sr','sl');
   },{passive:true});
   card.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
-    document.getElementById('card-inner').classList.remove('sr','sl');
+    const inner=document.getElementById('card-inner');
+    inner.classList.remove('sr','sl');
     if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){
-      if(!flipped){flipCard();return;}
-      rateCard(dx>0);
+      // swipe רק כשהכרטיס בצד האחורי
+      if(inner.classList.contains('flipped')){
+        rateCard(dx>0);
+      }
     }
   },{passive:true});
 })();
