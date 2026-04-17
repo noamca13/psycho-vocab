@@ -60,11 +60,12 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
 .wotd-btn{padding:6px 16px;border-radius:20px;border:none;font-size:12px;font-weight:600;cursor:pointer}
 .wotd-btn-yes{background:rgba(34,197,94,.2);color:var(--green);border:1px solid rgba(34,197,94,.3)}
 .wotd-btn-no{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2)}
-.wotd-collapsed{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.wotd-collapsed{display:flex;flex-direction:column;gap:5px;text-align:center}
 .wotd-collapsed-label{font-size:10px;font-weight:700;color:var(--accent2);letter-spacing:1px;text-transform:uppercase}
-.wotd-collapsed-word{font-size:14px;font-weight:700;color:#fff}
-.wotd-collapsed-he{font-size:13px;font-weight:600;color:var(--accent2);direction:rtl;font-family:'Heebo',sans-serif}
-.wotd-collapsed-result{font-size:11px;font-weight:500;color:var(--muted)}
+.wotd-collapsed-row2{display:flex;align-items:center;justify-content:center;gap:12px}
+.wotd-collapsed-word{font-size:15px;font-weight:700;color:#fff}
+.wotd-collapsed-he{font-size:13px;font-weight:600;color:#fff;direction:rtl;font-family:'Heebo',sans-serif}
+.wotd-collapsed-result{font-size:12px;font-weight:500;color:var(--muted);direction:ltr}
 
 /* STATS */
 .home-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
@@ -189,6 +190,13 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
 .chip-hard{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.25)}
 .chip-good{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.25)}
 .reset-btn{width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--muted);font-size:12px;font-weight:500;cursor:pointer}
+/* COLOR PICKER */
+.color-picker{display:flex;align-items:center;gap:12px;margin-top:20px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px}
+.color-picker-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.color-dots{display:flex;gap:10px;flex:1;justify-content:center}
+.color-dot{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .2s;flex-shrink:0}
+.color-dot.active{border-color:#fff;transform:scale(1.15)}
+.color-dot:active{transform:scale(.9)}
 </style>
 </head>
 <body>
@@ -231,6 +239,11 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
   </div>
 
   <div class="list-grid" id="list-grid"></div>
+
+  <div class="color-picker">
+    <div class="color-picker-label">Theme</div>
+    <div class="color-dots" id="color-dots"></div>
+  </div>
 </div>
 
 <div id="study">
@@ -499,9 +512,12 @@ function initWotd(){
       wotdDone=true;
       var card=document.getElementById('wotd-card');
       card.innerHTML='<div class="wotd-collapsed">'
-        +'<div class="wotd-collapsed-label">Word of the Day ⚡</div>'
-        +'<div class="wotd-collapsed-word">'+wotdWord.w+'</div>'
+        +'<div class="wotd-collapsed-label">⚡ Word of the Day</div>'
+        +'<div class="wotd-collapsed-row2">'
         +'<div class="wotd-collapsed-he">'+wotdWord.he+'</div>'
+        +'<div style="color:var(--muted)">·</div>'
+        +'<div class="wotd-collapsed-word">'+wotdWord.w+'</div>'
+        +'</div>'
         +'<div class="wotd-collapsed-result">'+saved.result+'</div>'
         +'</div>';
       return;
@@ -532,16 +548,19 @@ function initWotd(){
 }
 function collapseWotd(knew){
   wotdDone=true;
-  var result=knew?'You knew it! 🔥':'Keep going! 💪';
+  var result=knew?'You knew it 🔥':'Keep going 💪';
   try{
     var today=new Date().toISOString().slice(0,10);
     localStorage.setItem(WOTD_KEY,JSON.stringify({date:today,done:true,result:result}));
   }catch(e){}
   var card=document.getElementById('wotd-card');
   card.innerHTML='<div class="wotd-collapsed">'
-    +'<div class="wotd-collapsed-label">Word of the Day ⚡</div>'
-    +'<div class="wotd-collapsed-word">'+wotdWord.w+'</div>'
+    +'<div class="wotd-collapsed-label">⚡ Word of the Day</div>'
+    +'<div class="wotd-collapsed-row2">'
     +'<div class="wotd-collapsed-he">'+wotdWord.he+'</div>'
+    +'<div style="color:var(--muted)">·</div>'
+    +'<div class="wotd-collapsed-word">'+wotdWord.w+'</div>'
+    +'</div>'
     +'<div class="wotd-collapsed-result">'+result+'</div>'
     +'</div>';
 }
@@ -811,9 +830,45 @@ function switchTab(tab){
   },{passive:true});
 })();
 
+// COLOR PICKER
+var THEME_KEY='psycho_theme_v1';
+var THEMES=[
+  {name:'Purple', accent:'#7c6dfa', accent2:'#a78bfa'},
+  {name:'Blue',   accent:'#3b82f6', accent2:'#60a5fa'},
+  {name:'Green',  accent:'#10b981', accent2:'#34d399'},
+  {name:'Orange', accent:'#f97316', accent2:'#fb923c'},
+  {name:'Pink',   accent:'#ec4899', accent2:'#f472b6'},
+];
+var currentTheme=0;
+try{currentTheme=parseInt(localStorage.getItem(THEME_KEY)||'0');}catch(e){}
+function applyTheme(idx){
+  currentTheme=idx;
+  var t=THEMES[idx];
+  document.documentElement.style.setProperty('--accent',t.accent);
+  document.documentElement.style.setProperty('--accent2',t.accent2);
+  try{localStorage.setItem(THEME_KEY,String(idx));}catch(e){}
+  document.querySelectorAll('.color-dot').forEach(function(d,i){
+    d.classList.toggle('active',i===idx);
+  });
+}
+function buildColorPicker(){
+  var cont=document.getElementById('color-dots');
+  cont.innerHTML='';
+  THEMES.forEach(function(t,i){
+    var d=document.createElement('div');
+    d.className='color-dot'+(i===currentTheme?' active':'');
+    d.style.background='linear-gradient(135deg,'+t.accent+','+t.accent2+')';
+    d.title=t.name;
+    d.onclick=(function(idx){return function(){applyTheme(idx);};})(i);
+    cont.appendChild(d);
+  });
+  applyTheme(currentTheme);
+}
+
 // INIT
 initWotd();
 buildHome();
+buildColorPicker();
 </script>
 </body>
 </html>
