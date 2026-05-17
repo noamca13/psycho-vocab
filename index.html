@@ -698,9 +698,9 @@ function updateScreeningBanner(){
   if(!banner)return;
   if(screeningMode){
     var total=curAll.length;
-    var done=Math.min(screeningIdx+20,total);
+    var done=screeningIdx;
     banner.style.display='block';
-    banner.textContent='First pass: '+Math.min(done,total)+' / '+total+' — mark words you already know';
+    banner.textContent='First pass: '+done+' / '+total+' — mark words you already know';
     if(modebar)modebar.style.display='none';
   } else {
     banner.style.display='none';
@@ -922,9 +922,12 @@ function confirmResetScreening(){
     st.screened=false;
     st.screeningIdx=0;
     saveSt();
+    screeningMode=true;
+    screeningIdx=0;
     btn.textContent='Reset first pass screening';
     btn.style.color='';
     updateProgress();
+    updateScreeningBanner();
   } else {
     _resetScreeningPending=true;
     btn.textContent='Tap again to confirm ↺';
@@ -944,7 +947,12 @@ function confirmReset(){
     clearTimeout(_resetProgressTimer);
     _resetProgressPending=false;
     gState[curList]={scores:{},seen:{},sessions:0,correct:0,answered:0,screened:false,screeningIdx:0};
-    saveSt();updateProgress();updateHdr();startSes(false);
+    saveSt();
+    screeningMode=true;
+    screeningIdx=0;
+    updateProgress();updateHdr();
+    updateScreeningBanner();
+    startSes(false);
     btn.textContent='Reset progress for this unit';
     btn.style.color='';
   } else {
