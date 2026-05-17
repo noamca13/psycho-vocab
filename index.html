@@ -733,9 +733,9 @@ function updateScreeningBanner(){
   if(!banner)return;
   if(screeningMode){
     var total=curAll.length;
-    var done=screeningIdx;
+    var done=screeningIdx+deckIdx;
     banner.style.display='block';
-    banner.textContent='First pass: '+done+' / '+total+' — mark words you already know';
+    banner.textContent='First pass: '+Math.min(done,total)+' / '+total+' — mark words you already know';
     if(modebar)modebar.style.display='none';
   } else {
     banner.style.display='none';
@@ -802,7 +802,9 @@ function rateCard(knew){
     else{st.scores[w]=Math.max(-6,(st.scores[w]||0)-2);sDidnt++;}
   }
   st.seen[w]=(st.seen[w]||0)+1;
-  st.answered++;saveSt();deckIdx++;showCard();
+  st.answered++;saveSt();deckIdx++;
+  if(screeningMode) updateScreeningBanner();
+  showCard();
 }
 function endSes(){
   document.getElementById('card-area').style.display='none';
