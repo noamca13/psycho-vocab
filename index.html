@@ -79,6 +79,11 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
 .goal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .goal-label{font-size:11px;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.5px}
 .goal-count{font-size:13px;font-weight:600;color:var(--accent2)}
+.goal-edit-btn{background:transparent;border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer}
+.goal-target-picker{display:none;gap:6px;margin-top:8px;flex-wrap:wrap}
+.goal-target-picker.visible{display:flex}
+.goal-target-btn{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer}
+.goal-target-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .goal-bar-wrap{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;margin-bottom:6px}
 .goal-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .5s}
 .goal-sub{font-size:11px;font-weight:400;color:var(--muted)}
@@ -237,7 +242,16 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
   <div class="daily-goal">
     <div class="goal-header">
       <div class="goal-label">Daily Goal 🎯</div>
-      <div class="goal-count"><span id="goal-done">0</span> / 5 sessions</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="goal-count"><span id="goal-done">0</span> / <span id="goal-target-display">5</span> sessions</div>
+        <button class="goal-edit-btn" onclick="toggleGoalPicker()">✎</button>
+      </div>
+    </div>
+    <div class="goal-target-picker" id="goal-target-picker">
+      <button class="goal-target-btn" onclick="setGoalTarget(5)">5</button>
+      <button class="goal-target-btn" onclick="setGoalTarget(10)">10</button>
+      <button class="goal-target-btn" onclick="setGoalTarget(15)">15</button>
+      <button class="goal-target-btn" onclick="setGoalTarget(20)">20</button>
     </div>
     <div class="goal-bar-wrap"><div class="goal-bar-fill" id="goal-bar" style="width:0%"></div></div>
     <div class="goal-sub" id="goal-sub">Complete 5 sessions today</div>
@@ -444,6 +458,25 @@ function getTotalMastered(){
 }
 
 // DAILY GOAL
+var GOAL_TARGET_KEY='psycho_goal_target_v1';
+function getGoalTarget(){
+  try{return parseInt(localStorage.getItem(GOAL_TARGET_KEY)||'5');}catch(e){return 5;}
+}
+function toggleGoalPicker(){
+  var picker=document.getElementById('goal-target-picker');
+  picker.classList.toggle('visible');
+  if(picker.classList.contains('visible')){
+    var t=getGoalTarget();
+    document.querySelectorAll('.goal-target-btn').forEach(function(b){
+      b.classList.toggle('active',parseInt(b.textContent)===t);
+    });
+  }
+}
+function setGoalTarget(n){
+  try{localStorage.setItem(GOAL_TARGET_KEY,String(n));}catch(e){}
+  document.getElementById('goal-target-picker').classList.remove('visible');
+  updateGoalUI();
+}
 function getGoalData(){
   var today=new Date().toISOString().slice(0,10);
   try{var d=JSON.parse(localStorage.getItem(GOAL_KEY)||'{}');if(d.date===today)return d;}catch(e){}
@@ -456,8 +489,10 @@ function incrementGoal(words){
   saveGoalData(d);updateGoalUI();return d;
 }
 function updateGoalUI(){
-  var d=getGoalData();var target=5,pct=Math.min(100,d.sessions/target*100);
+  var d=getGoalData();var target=getGoalTarget();
+  var pct=Math.min(100,d.sessions/target*100);
   document.getElementById('goal-done').textContent=d.sessions;
+  document.getElementById('goal-target-display').textContent=target;
   document.getElementById('goal-bar').style.width=pct+'%';
   if(d.sessions>=target){
     document.getElementById('goal-sub').innerHTML='<span class="goal-complete">Daily goal complete! ✅</span>';
@@ -797,7 +832,7 @@ function endSes(){
   document.getElementById('pbar').style.width='100%';
   updateHdr();
   var goalData=incrementGoal(todayWords);todayWords=[];
-  if(goalData.sessions>=5){playSound('win75');document.getElementById('dqp').style.display='block';}
+  if(goalData.sessions>=getGoalTarget()){playSound('win75');document.getElementById('dqp').style.display='block';}
 }
 function restartSes(){
   document.getElementById('ses-done').classList.remove('visible');
