@@ -265,10 +265,15 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
     <button class="tab" onclick="switchTab('progress')">Progress</button>
   </div>
   <div class="view active" id="view-cards">
-    <div class="mode-bar">
+    <div class="mode-bar" style="margin-bottom:6px">
       <button class="mode-btn active" id="mode-all" onclick="setMode('all')">All</button>
       <button class="mode-btn" id="mode-hard" onclick="setMode('hard')">Hard</button>
       <button class="mode-btn" id="mode-new" onclick="setMode('new')">New</button>
+    </div>
+    <div class="mode-bar" id="ses-size-bar">
+      <button class="mode-btn ses-len-btn" onclick="setSesLen(10)">10</button>
+      <button class="mode-btn ses-len-btn" onclick="setSesLen(15)">15</button>
+      <button class="mode-btn ses-len-btn active" onclick="setSesLen(20)">20</button>
     </div>
     <div class="pbar-wrap"><div class="pbar-fill" id="pbar" style="width:0%"></div></div>
     <div class="screen-banner" id="screen-banner" style="display:none">
@@ -395,7 +400,7 @@ var ALL_LISTS = {"1":{"about":["אודות","","(1/2)"],"about [2]":["ליד, ב
 
 var STOR='psycho_v3',PRON='psycho_pron_v2',STREAK_KEY='psycho_streak_v1';
 var GOAL_KEY='psycho_goal_v1',WEEKLY_KEY='psycho_weekly_v1',MUTE_KEY='psycho_mute_v1';
-var GOAL_TARGET_KEY='psycho_goal_target_v1';
+var GOAL_TARGET_KEY='psycho_goal_target_v1';var SES_SIZE_KEY='psycho_ses_size_v1';
 var gState={},pronCache={},muted=false;
 try{gState=JSON.parse(localStorage.getItem(STOR)||'{}')}catch(e){}
 try{pronCache=JSON.parse(localStorage.getItem(PRON)||'{}')}catch(e){}
@@ -672,6 +677,8 @@ function openList(num){
   document.getElementById('home').style.display='none';
   document.getElementById('study').style.display='block';
   updateHdr();
+  // Set active ses-size button
+  document.querySelectorAll('.ses-len-btn').forEach(function(b){b.classList.toggle('active',parseInt(b.textContent)===sesLen);});
   if(!isScreenDone(num)){
     // Check if there's an in-progress queue in localStorage
     try{
@@ -802,6 +809,7 @@ function checkScreenBatchEnd(){
       document.getElementById('btn-restart').onclick=restartSes;
       document.getElementById('ses-done').classList.remove('visible');
       document.getElementById('card-area').style.display='';
+      sKnew=0;sDidnt=0;sAlmost=0;
       buildScreenBatch();
     };
   }
@@ -811,21 +819,13 @@ function endScreeningRound(){
   screenMode=false;
   delete gState['_screenQueue_'+curList];
   saveSt();
+  // Clear localStorage queue
+  try{var sq=JSON.parse(localStorage.getItem(SCREEN_QUEUE_KEY)||'{}');delete sq[curList];localStorage.setItem(SCREEN_QUEUE_KEY,JSON.stringify(sq));}catch(e){}
   saveScreenData(curList,{done:true});
   document.getElementById('screen-banner').style.display='none';
-  // Show completion then start normal session
-  document.getElementById('ses-done').classList.add('visible');
-  document.getElementsByClassName('done-icon')[0].textContent='🎯';
-  document.getElementById('done-sub').textContent='First Pass complete! Starting normal sessions...';
-  document.getElementById('d-knew').textContent='';
-  document.getElementById('d-didnt').textContent='';
-  document.getElementById('d-pct').textContent='';
-  document.getElementById('btn-restart').textContent='Start Studying 📚';
-  document.getElementById('btn-restart').onclick=function(){
-    document.getElementById('btn-restart').textContent='New Session 🔄';
-    document.getElementById('btn-restart').onclick=restartSes;
-    startSes(true);
-  };
+  incrementGoal(todayWords);todayWords=[];
+  // Go straight into normal session
+  startSes(false);
 }
 function buildDeck(){
   var st=getSt(curList);var words;
@@ -844,7 +844,13 @@ function buildDeck(){
     var i=2;
     while(words.indexOf(base+' ['+i+']')!==-1){sorted.push(base+' ['+i+']');i++;}
   });
-  deck=sorted.slice(0,20);
+  // Cut at sesLen base-words, not cards - so multi-meaning words are never split
+  var cardCount=0,cutIdx=sorted.length;
+  for(var ci=0;ci<sorted.length;ci++){
+    if(!/\s\[\d+\]$/.test(sorted[ci])) cardCount++;
+    if(cardCount>sesLen){cutIdx=ci;break;}
+  }
+  deck=sorted.slice(0,cutIdx);
   deckIdx=0;sKnew=0;sDidnt=0;flipped=false;
 }
 function setMode(m){
@@ -935,12 +941,22 @@ function endSes(){
   if(goalData.sessions>=getGoalTarget()){playSound('win75');document.getElementById('dqp').style.display='block';}
 }
 function restartSes(){
+  var btn=document.getElementById('btn-restart');
+  if(btn){btn.textContent='New Session 🔄';btn.onclick=restartSes;}
   document.getElementById('ses-done').classList.remove('visible');
   document.getElementById('card-area').style.display='';
   startSes(true);
 }
 
 var qDeck=[],qIdx=0,qOk=0,qBad=0,quizLen=20;
+var sesLen=20;
+try{sesLen=parseInt(localStorage.getItem(SES_SIZE_KEY)||'20');}catch(e){}
+function setSesLen(n){
+  sesLen=n;
+  try{localStorage.setItem(SES_SIZE_KEY,String(n));}catch(e){}
+  document.querySelectorAll('.ses-len-btn').forEach(function(b){b.classList.toggle('active',parseInt(b.textContent)===n);});
+  buildDeck();
+}
 function setQuizLen(n){
   quizLen=n;
   document.querySelectorAll('.quiz-len-btn').forEach(function(b){
