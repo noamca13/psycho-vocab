@@ -741,16 +741,31 @@ function buildScreenBatch(){
   }
   var queue=gState['_screenQueue_'+curList]||[];
   if(queue.length===0){endScreeningRound();return;}
+  var queueSet={};
+  queue.forEach(function(w){queueSet[w]=true;});
   var batch=queue.slice(0,20);
-  // Build deck manually for screen mode
-  var st=getSt(curList);
-  var baseWords=batch.filter(function(w){return!/\s\[\d+\]$/.test(w);});
   var sorted=[];
-  baseWords.forEach(function(base){
-    if(batch.indexOf(base)!==-1) sorted.push(base);
-    var i=2;
-    while(batch.indexOf(base+' ['+i+']')!==-1){sorted.push(base+' ['+i+']');i++;}
+  var seen={};
+  batch.forEach(function(w){
+    if(seen[w]) return;
+    var base=w.replace(/\s*\[\d+\]$/,'');
+    if(queueSet[base] && !seen[base]){
+      // Add base + all its variants in queue
+      seen[base]=true;
+      sorted.push(base);
+      var i=2;
+      while(queueSet[base+' ['+i+']']){
+        seen[base+' ['+i+']']=true;
+        sorted.push(base+' ['+i+']');
+        i++;
+      }
+    } else if(!queueSet[base] && !seen[w]){
+      // Orphaned variant - add just this variant
+      seen[w]=true;
+      sorted.push(w);
+    }
   });
+  if(sorted.length===0) sorted=batch.slice();
   deck=sorted;
   deckIdx=0;sKnew=0;sDidnt=0;sAlmost=0;flipped=false;
   document.getElementById('ses-done').classList.remove('visible');
