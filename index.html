@@ -265,16 +265,12 @@ button{font-family:'Space Grotesk',sans-serif;font-size:14px}
     <button class="tab" onclick="switchTab('progress')">Progress</button>
   </div>
   <div class="view active" id="view-cards">
-    <div class="mode-bar" style="margin-bottom:6px">
+    <div class="mode-bar">
       <button class="mode-btn active" id="mode-all" onclick="setMode('all')">All</button>
       <button class="mode-btn" id="mode-hard" onclick="setMode('hard')">Hard</button>
       <button class="mode-btn" id="mode-new" onclick="setMode('new')">New</button>
     </div>
-    <div class="mode-bar" id="ses-size-bar">
-      <button class="mode-btn ses-len-btn" onclick="setSesLen(10)">10</button>
-      <button class="mode-btn ses-len-btn" onclick="setSesLen(15)">15</button>
-      <button class="mode-btn ses-len-btn active" onclick="setSesLen(20)">20</button>
-    </div>
+
     <div class="pbar-wrap"><div class="pbar-fill" id="pbar" style="width:0%"></div></div>
     <div class="screen-banner" id="screen-banner" style="display:none">
       <div class="screen-banner-label">⚡ First Pass</div>
@@ -400,7 +396,7 @@ var ALL_LISTS = {"1":{"about":["אודות","","(1/2)"],"about [2]":["ליד, ב
 
 var STOR='psycho_v3',PRON='psycho_pron_v2',STREAK_KEY='psycho_streak_v1';
 var GOAL_KEY='psycho_goal_v1',WEEKLY_KEY='psycho_weekly_v1',MUTE_KEY='psycho_mute_v1';
-var GOAL_TARGET_KEY='psycho_goal_target_v1';var SES_SIZE_KEY='psycho_ses_size_v1';
+var GOAL_TARGET_KEY='psycho_goal_target_v1';
 var gState={},pronCache={},muted=false;
 try{gState=JSON.parse(localStorage.getItem(STOR)||'{}')}catch(e){}
 try{pronCache=JSON.parse(localStorage.getItem(PRON)||'{}')}catch(e){}
@@ -677,8 +673,6 @@ function openList(num){
   document.getElementById('home').style.display='none';
   document.getElementById('study').style.display='block';
   updateHdr();
-  // Set active ses-size button
-  document.querySelectorAll('.ses-len-btn').forEach(function(b){b.classList.toggle('active',parseInt(b.textContent)===sesLen);});
   if(!isScreenDone(num)){
     // Check if there's an in-progress queue in localStorage
     try{
@@ -859,11 +853,15 @@ function buildDeck(){
     var i=2;
     while(words.indexOf(base+' ['+i+']')!==-1){sorted.push(base+' ['+i+']');i++;}
   });
-  // Cut at sesLen base-words, not cards - so multi-meaning words are never split
-  var cardCount=0,cutIdx=sorted.length;
-  for(var ci=0;ci<sorted.length;ci++){
-    if(!/\s\[\d+\]$/.test(sorted[ci])) cardCount++;
-    if(cardCount>sesLen){cutIdx=ci;break;}
+  // Cut at sesLen cards - never exceed, step back if mid multi-meaning word
+  if(sorted.length<=sesLen){deck=sorted;}
+  else{
+    var cutIdx=sesLen;
+    // Step back past any trailing variants
+    while(cutIdx>0 && /\s\[\d+\]$/.test(sorted[cutIdx-1])) cutIdx--;
+    // If next card after cutIdx is a variant, its base is at cutIdx-1 - remove base too
+    if(cutIdx>0 && cutIdx<sorted.length && /\s\[\d+\]$/.test(sorted[cutIdx])) cutIdx--;
+    deck=cutIdx>0?sorted.slice(0,cutIdx):sorted.slice(0,sesLen);
   }
   deck=sorted.slice(0,cutIdx);
   deckIdx=0;sKnew=0;sDidnt=0;flipped=false;
@@ -965,13 +963,6 @@ function restartSes(){
 
 var qDeck=[],qIdx=0,qOk=0,qBad=0,quizLen=20;
 var sesLen=20;
-try{sesLen=parseInt(localStorage.getItem(SES_SIZE_KEY)||'20');}catch(e){}
-function setSesLen(n){
-  sesLen=n;
-  try{localStorage.setItem(SES_SIZE_KEY,String(n));}catch(e){}
-  document.querySelectorAll('.ses-len-btn').forEach(function(b){b.classList.toggle('active',parseInt(b.textContent)===n);});
-  buildDeck();
-}
 function setQuizLen(n){
   quizLen=n;
   document.querySelectorAll('.quiz-len-btn').forEach(function(b){
