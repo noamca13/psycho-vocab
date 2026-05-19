@@ -456,10 +456,12 @@ function toggleMute(){
 
 function getStreakData(){try{return JSON.parse(localStorage.getItem(STREAK_KEY)||'{"streak":0,"lastDay":""}');}catch(e){return{streak:0,lastDay:''};}}
 function updateStreak(){
-  var today=new Date().toISOString().slice(0,10);
+  var today=getIsraelDate();
   var d=getStreakData();
   if(d.lastDay===today)return d.streak;
-  var yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  var yDate=new Date();yDate.setDate(yDate.getDate()-1);
+  var yesterday=new Date(yDate.toLocaleString('en-US',{timeZone:'Asia/Jerusalem'}));
+  yesterday=yesterday.getFullYear()+'-'+String(yesterday.getMonth()+1).padStart(2,'0')+'-'+String(yesterday.getDate()).padStart(2,'0');
   var streak=d.lastDay===yesterday?d.streak+1:1;
   try{localStorage.setItem(STREAK_KEY,JSON.stringify({streak:streak,lastDay:today}));}catch(e){}
   return streak;
@@ -493,8 +495,15 @@ function openGoalModal(){
   document.getElementById('goal-modal').classList.add('show');
 }
 function closeGoalModal(){document.getElementById('goal-modal').classList.remove('show');}
+function getIsraelDate(){
+  // Israel is UTC+2 (winter) or UTC+3 (summer DST)
+  var now=new Date();
+  var israel=new Date(now.toLocaleString('en-US',{timeZone:'Asia/Jerusalem'}));
+  return israel.getFullYear()+'-'+String(israel.getMonth()+1).padStart(2,'0')+'-'+String(israel.getDate()).padStart(2,'0');
+}
+
 function getGoalData(){
-  var today=new Date().toISOString().slice(0,10);
+  var today=getIsraelDate();
   try{var d=JSON.parse(localStorage.getItem(GOAL_KEY)||'{}');if(d.date===today)return d;}catch(e){}
   return{date:today,sessions:0,words:[]};
 }
@@ -520,7 +529,7 @@ function updateGoalUI(){
 }
 
 function recordWeekly(){
-  var today=new Date().toISOString().slice(0,10);
+  var today=getIsraelDate();
   try{var d=JSON.parse(localStorage.getItem(WEEKLY_KEY)||'{}');d[today]=(d[today]||0)+1;localStorage.setItem(WEEKLY_KEY,JSON.stringify(d));}catch(e){}
 }
 function getWeeklyData(){
@@ -529,8 +538,10 @@ function getWeeklyData(){
     var d=JSON.parse(localStorage.getItem(WEEKLY_KEY)||'{}');
     var days=['Su','Mo','Tu','We','Th','Fr','Sa'];
     for(var i=6;i>=0;i--){
-      var dt=new Date(Date.now()-i*86400000);
-      result.push({label:days[dt.getDay()],count:d[dt.toISOString().slice(0,10)]||0,isToday:i===0});
+      var dt=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Jerusalem'}));
+      dt.setDate(dt.getDate()-i);
+      var dtStr=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      result.push({label:days[dt.getDay()],count:d[dtStr]||0,isToday:i===0});
     }
   }catch(e){}
   return result;
@@ -552,52 +563,58 @@ function resetScreenData(unit){
 function isScreenDone(unit){return getScreenData(unit).done;}
 var wotdWord=null,wotdRevealed=false,wotdDone=false;
 function initWotd(){
-  var today=new Date().toISOString().slice(0,10);
-  var seed=parseInt(today.replace(/-/g,'').slice(-5));
-  // Build candidate pools
-  var hardWords=[], masteredWords=[];
-  for(var i=1;i<=10;i++){
-    var w=ALL_LISTS[String(i)]||{};
-    var st=getSt(i);
-    Object.keys(w).forEach(function(k){
-      var score=st.scores[k]||0;
-      if(score<0) hardWords.push({w:k,he:w[k][0]});
-      else if(score>=3) masteredWords.push({w:k,he:w[k][0]});
-    });
+  var today=getIsraelDate();
+  var saved={};
+  try{saved=JSON.parse(localStorage.getItem(WOTD_KEY)||'{}');}catch(e){}
+
+  // If we already have a word saved for today, use that same word
+  if(saved.date===today && saved.word){
+    wotdWord={w:saved.word,he:saved.he};
+  } else {
+    // Pick new word for today
+    var seed=parseInt(today.replace(/-/g,'').slice(-5));
+    var hardWords=[],masteredWords=[],allWords=[];
+    for(var i=1;i<=10;i++){
+      var w=ALL_LISTS[String(i)]||{};
+      var st=getSt(i);
+      Object.keys(w).forEach(function(k){
+        var score=st.scores[k]||0;
+        allWords.push({w:k,he:w[k][0]});
+        if(score<0) hardWords.push({w:k,he:w[k][0]});
+        else if(score>=3) masteredWords.push({w:k,he:w[k][0]});
+      });
+    }
+    var pool;
+    var r=(seed%100);
+    if(hardWords.length>0 && r<70) pool=hardWords;
+    else if(masteredWords.length>0) pool=masteredWords;
+    else pool=allWords;
+    wotdWord=pool[seed%pool.length];
+    // Save chosen word so it stays consistent all day
+    saved.date=today;
+    saved.word=wotdWord.w;
+    saved.he=wotdWord.he;
+    try{localStorage.setItem(WOTD_KEY,JSON.stringify(saved));}catch(e){}
   }
-  // Fallback: all words
-  var allWords=[];
-  for(var i=1;i<=10;i++){
-    var w=ALL_LISTS[String(i)]||{};
-    Object.keys(w).forEach(function(k){allWords.push({w:k,he:w[k][0]});});
-  }
-  // 70% hard, 30% mastered
-  var pool;
-  var r=(seed%100);
-  if(hardWords.length>0 && r<70) pool=hardWords;
-  else if(masteredWords.length>0) pool=masteredWords;
-  else pool=allWords;
-  wotdWord=pool[seed%pool.length];
+
   document.getElementById('wotd-word').textContent=wotdWord.w;
   document.getElementById('wotd-he').textContent=wotdWord.he;
 
-  try{
-    var saved=JSON.parse(localStorage.getItem(WOTD_KEY)||'{}');
-    if(saved.date===today && saved.done){
-      wotdDone=true;
-      var card=document.getElementById('wotd-card');
-      card.innerHTML='<div class="wotd-collapsed">'
-        +'<div class="wotd-collapsed-label">⚡ Word of the Day</div>'
-        +'<div class="wotd-collapsed-row2">'
-        +'<div class="wotd-collapsed-he">'+wotdWord.he+'</div>'
-        +'<div style="color:var(--muted)">·</div>'
-        +'<div class="wotd-collapsed-word">'+wotdWord.w+'</div>'
-        +'</div>'
-        +'<div class="wotd-collapsed-result">'+saved.result+'</div>'
-        +'</div>';
-      return;
-    }
-  }catch(e){}
+  // Check if already answered today
+  if(saved.date===today && saved.done){
+    wotdDone=true;
+    var card=document.getElementById('wotd-card');
+    card.innerHTML='<div class="wotd-collapsed">'
+      +'<div class="wotd-collapsed-label">⚡ Word of the Day</div>'
+      +'<div class="wotd-collapsed-row2">'
+      +'<div class="wotd-collapsed-he">'+wotdWord.he+'</div>'
+      +'<div style="color:var(--muted)">·</div>'
+      +'<div class="wotd-collapsed-word">'+wotdWord.w+'</div>'
+      +'</div>'
+      +'<div class="wotd-collapsed-result">'+saved.result+'</div>'
+      +'</div>';
+    return;
+  }
 
   document.getElementById('wotd-card').onclick=function(){
     if(wotdDone)return;
@@ -625,8 +642,10 @@ function collapseWotd(knew){
   wotdDone=true;
   var result=knew?'You knew it 🔥':'Keep going 💪';
   try{
-    var today=new Date().toISOString().slice(0,10);
-    localStorage.setItem(WOTD_KEY,JSON.stringify({date:today,done:true,result:result}));
+    var today=getIsraelDate();
+    var wotdSaved={};try{wotdSaved=JSON.parse(localStorage.getItem(WOTD_KEY)||'{}');}catch(e){}
+    wotdSaved.date=today;wotdSaved.done=true;wotdSaved.result=result;
+    localStorage.setItem(WOTD_KEY,JSON.stringify(wotdSaved));
   }catch(e){}
   var card=document.getElementById('wotd-card');
   card.innerHTML='<div class="wotd-collapsed">'
