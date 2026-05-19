@@ -858,31 +858,37 @@ function endScreeningRound(){
 function buildDeck(){
   var st=getSt(curList);var words;
   var notMastered=curAll.filter(function(w){return!isMastered(w,st);});
-  var pool=notMastered.length>=5?notMastered:curAll.slice();
+  var mastered=curAll.filter(function(w){return isMastered(w,st);});
+  // Prefer non-mastered, fill with mastered only if needed to reach sesLen
+  var pool=notMastered.length>=sesLen ? notMastered : notMastered.concat(mastered);
   if(mode==='hard'){words=pool.filter(function(w){return(st.scores[w]||0)<0;});if(!words.length)words=pool;}
   else if(mode==='new'){words=pool.filter(function(w){return!st.seen[w];});if(!words.length)words=pool;}
   else words=pool.slice();
-  // Sort by score+random, but keep [N] variants right after their base word
+  // Sort base words by score+random, keep variants after their base
+  var wordsSet={};words.forEach(function(w){wordsSet[w]=true;});
   var baseWords=words.filter(function(w){return!/\s\[\d+\]$/.test(w);});
   baseWords.sort(function(a,b){return((st.scores[a]||0)+Math.random()*4)-((st.scores[b]||0)+Math.random()*4);});
-  // For each base word, insert its variants immediately after
   var sorted=[];
   baseWords.forEach(function(base){
     sorted.push(base);
     var i=2;
-    while(words.indexOf(base+' ['+i+']')!==-1){sorted.push(base+' ['+i+']');i++;}
+    while(wordsSet[base+' ['+i+']']){sorted.push(base+' ['+i+']');i++;}
   });
-  // Cut at sesLen cards - never exceed, step back if mid multi-meaning word
+  // Cut at exactly sesLen base words, including all their variants
   if(sorted.length<=sesLen){deck=sorted;}
   else{
-    var cutIdx=sesLen;
-    // Step back past any trailing variants
-    while(cutIdx>0 && /\s\[\d+\]$/.test(sorted[cutIdx-1])) cutIdx--;
-    // If next card after cutIdx is a variant, its base is at cutIdx-1 - remove base too
-    if(cutIdx>0 && cutIdx<sorted.length && /\s\[\d+\]$/.test(sorted[cutIdx])) cutIdx--;
-    deck=cutIdx>0?sorted.slice(0,cutIdx):sorted.slice(0,sesLen);
+    var baseCount=0,cutIdx=sorted.length;
+    for(var ci=0;ci<sorted.length;ci++){
+      if(!/\s\[\d+\]$/.test(sorted[ci])) baseCount++;
+      if(baseCount===sesLen){
+        var ci2=ci+1;
+        while(ci2<sorted.length && /\s\[\d+\]$/.test(sorted[ci2])) ci2++;
+        cutIdx=ci2;
+        break;
+      }
+    }
+    deck=sorted.slice(0,cutIdx);
   }
-  deck=sorted.slice(0,cutIdx);
   deckIdx=0;sKnew=0;sDidnt=0;flipped=false;
 }
 function setMode(m){
